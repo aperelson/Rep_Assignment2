@@ -104,7 +104,7 @@ ggplot(melted_fat_inj,
         ggtitle("Total Fatalities By Event Type") +
         theme(axis.text.x = element_text(angle=90)) +
         expand_limits(y=c(0,6000)) +
-        scale_y_continuous(labels = dollar)
+        scale_y_continuous(labels = comma)
 ```
 
 #### Conclusion of this is:
