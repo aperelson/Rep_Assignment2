@@ -1,5 +1,5 @@
 ---
-title: 'Peer Graded Assignment: Course Project 2'
+title: 'Severe Weather Impact on Public Health and Economy in the United States'
 author: "Andrew Perelson"
 date: "11 February 2017"
 output: html_document
@@ -9,9 +9,29 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Data Processing
-### Only take the columns we need - this will make processing faster.
+### Synopsis
 
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+The project will explore the NOAA National Weather Service Database and answer some basic questions about severe weather events and their impact on: 
+
+* Which types of events are most harmful with respect to population health?
+
+* Which types of events have the greatest economic consequences?
+
+### Load Required Libraries
+
+```{r}
+library(plyr)
+library(ggplot2)
+library(reshape2)
+library(scales)
+```
+
+### Data Processing
+#### Only take the columns we need - this will make processing faster.
 ```{r}
 basedata <- read.csv("repdata_data_StormData.csv.bz2")
 stormdata <- basedata[c("EVTYPE", 
@@ -24,3 +44,88 @@ stormdata <- basedata[c("EVTYPE",
 dim(stormdata)
 ```
 
+#### The damage values have to be calculated from the given EXP key values 
+#### and the Property damage must be added to Crop damage 
+#### to calculate the total damage as follows:
+```{r}
+stormdata$PROPDMGEXP <- mapvalues(stormdata$PROPDMGEXP, from = c("K", "M","", "B", "m", "+", "0", "5", "6", "?", "4", "2", "3", "h", "7", "H", "-", "1", "8"), to = c(10^3, 10^6, 1, 10^9, 10^6, 0,1,10^5, 10^6, 0, 10^4, 10^2, 10^3, 10^2, 10^7, 10^2, 0, 10, 10^8))
+stormdata$PROPDMGEXP <- as.numeric(as.character(stormdata$PROPDMGEXP))
+stormdata$PROPDMGTOTAL <- (stormdata$PROPDMG * stormdata$PROPDMGEXP)
+
+stormdata$CROPDMGEXP <- mapvalues(stormdata$CROPDMGEXP, from = c("","M", "K", "m", "B", "?", "0", "k","2"), to = c(1, 10^6, 10^3, 10^6, 10^9, 0, 1, 10^3, 10^2))
+stormdata$CROPDMGEXP <- as.numeric(as.character(stormdata$CROPDMGEXP))
+stormdata$CROPDMGTOTAL <- (stormdata$CROPDMG * stormdata$CROPDMGEXP)
+
+stormdata$DAMAGETOTAL <- stormdata$PROPDMGTOTAL + stormdata$CROPDMGTOTAL
+```
+
+#### Some of the values are replicated as different values, 
+#### the following analysis highlights this:
+```{r}
+unique(stormdata[grepl("TSTM",stormdata$EVTYPE),]$EVTYPE)
+```
+
+#### It's easier to consolidate all similar event types and group them:
+```{r}
+  storm_by_type <- mutate(stormdata, EVTYPEGRP = 
+   ifelse(grepl("LIGHTNING|LIGNTNING", EVTYPE), "LIGHTNING",
+    ifelse(grepl("HAIL", EVTYPE), "HAIL",
+     ifelse(grepl("RAIN|FLOOD|WET|FLD", EVTYPE), "RAIN",
+      ifelse(grepl("SNOW|WINTER|WINTRY|BLIZZARD|SLEET|COLD|ICE|FREEZE|AVALANCHE|ICY", EVTYPE), "WINTER",
+       ifelse(grepl("TORNADO|FUNNEL", EVTYPE), "TORNADO",
+        ifelse(grepl("WIND|HURRICANE", EVTYPE), "WINDS",
+         ifelse(grepl("STORM|THUNDER|TSTM|TROPICAL +STORM", EVTYPE), "STORM",
+          ifelse(grepl("FIRE", EVTYPE), "FIRE",
+           ifelse(grepl("FOG|VISIBILITY|DARK|DUST", EVTYPE), "FOG",
+            ifelse(grepl("WAVE|SURF|SURGE|TIDE|TSUNAMI|CURRENT|SWELL", EVTYPE), "WAVE",
+             ifelse(grepl("HEAT|HIGH +TEMP|RECORD +TEMP|WARM|DRY", EVTYPE), "HEAT",
+              ifelse(grepl("VOLCAN", EVTYPE), "VOLCANO",
+               ifelse(grepl("DROUGHT", EVTYPE), "DROUGHT", "OTHER"))))))))))))))
+```
+
+#### Now summarise all the data by event type:
+```{r}
+stormSummary <- 
+    aggregate(cbind(DAMAGETOTAL, INJURIES, FATALITIES) ~ EVTYPEGRP, data = storm_by_type, sum)
+```
+
+### Results
+#### Event Types that are most harmful with respect to population health
+
+```{r}
+tempVars <- c("EVTYPEGRP","FATALITIES","INJURIES")
+fat_inj_summ <- stormSummary[tempVars]
+melted_fat_inj <- melt(fat_inj_summ, id.vars = c("EVTYPEGRP"))
+
+ggplot(melted_fat_inj, 
+        aes(EVTYPEGRP, value, fill=variable)) + 
+        geom_bar(stat="identity",position = "dodge") +
+        xlab("Event Type")+ ylab("Number of Fatalities") +
+        ggtitle("Total Fatalities By Event Type") +
+        theme(axis.text.x = element_text(angle=90)) +
+        expand_limits(y=c(0,6000)) +
+        scale_y_continuous(labels = dollar)
+```
+
+#### Conclusion of this is:
+* Tornados and Heat are the most harmful event types with regard to population health.
+
+
+#### Event Types that have the greatest economic consequences
+
+```{r}
+tempVars <- c("EVTYPEGRP","DAMAGETOTAL")
+dmg_summ <- stormSummary[tempVars]
+melted_dmg <- melt(dmg_summ, id.vars = c("EVTYPEGRP"))
+
+ggplot(melted_dmg, 
+        aes(EVTYPEGRP, value, fill=variable)) + 
+        geom_bar(stat="identity",position = "dodge") +
+        xlab("Event Type")+ ylab("Number of Fatalities") +
+        ggtitle("Total Economic Damage By Event Type") +
+        theme(axis.text.x = element_text(angle=90)) +
+        scale_y_continuous(labels = dollar)
+```
+
+#### Conclusion of this is:
+* Rain and Winds are the most harmful event types with regard to economic damage.
