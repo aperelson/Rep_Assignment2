@@ -1,0 +1,26 @@
+---
+title: 'Peer Graded Assignment: Course Project 2'
+author: "Andrew Perelson"
+date: "11 February 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Processing
+### Only take the columns we need - this will make processing faster.
+
+```{r}
+basedata <- read.csv("repdata_data_StormData.csv.bz2")
+stormdata <- basedata[c("EVTYPE", 
+                        "FATALITIES", 
+                        "INJURIES", 
+                        "PROPDMG", 
+                        "PROPDMGEXP", 
+                        "CROPDMG", 
+                        "CROPDMGEXP")]
+dim(stormdata)
+```
+
